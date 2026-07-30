@@ -1,5 +1,11 @@
 import streamlit as st
 
+st.set_page_config(
+    page_title="등교 체크리스트",
+    page_icon="🌤️",
+    layout="centered"
+)
+
 if not "checkbox_max" in st.session_state:
     st.session_state.checkbox_max = 2
 if not "checked" in st.session_state:
@@ -15,6 +21,10 @@ def checkbox_line(label, idx):
     else:
         st.checkbox(f'~~{label}~~', value=True, disabled=True)
 
+# ---------------------------------------------------------------------
+# 화면 구현
+
+st.markdown("#### 오늘 할 일")
 checkbox_line("안녕하세요", 0)
 checkbox_line("반가워요", 1)
 
