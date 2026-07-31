@@ -7,9 +7,24 @@ st.set_page_config(
     layout="centered"
 )
 
-with open("to_do.json", "r", encoding="utf-8") as f:
-    tasks = json.load(f)
-    daily_tasks = tasks["daily_tasks"]
+# 그냥 전체 json 뱉는 함수
+def load_data():
+    with open("to_do.json", "r", encoding="utf-8") as f:
+        tasks = json.load(f)
+        return tasks
+
+def save_data(data, idx):
+    tasks = load_data()
+    for i in tasks:
+        if data in tasks[i]:
+            return False
+    tasks[idx].append(data)
+    with open("to_do.json", "w", encoding="utf-8") as f:
+        json.dump(tasks, f, ensure_ascii=False, indent=4)
+    st.session_state.task_checked[data] = False
+    st.session_state.checkbox_max += 1
+
+daily_tasks = load_data()["daily_tasks"]
 all_tasks = daily_tasks
 
 if not "task_checked" in st.session_state:
@@ -64,6 +79,10 @@ if st.session_state.stage == "HOME":
 
 elif st.session_state.stage == "SETTING":
 
+    if st.session_state.get("show_toast", False):
+        st.toast(f"'{st.session_state.show_toast}' 할 일을 추가했습니다!")
+        del st.session_state.show_toast
+
     col1, col2 = st.columns([5, 1])
     with col1:
         st.subheader("할 일 편집")
@@ -88,7 +107,7 @@ elif st.session_state.stage == "SETTING":
 
     if repititon_type == "매일 반복":
 
-        to_do = st.text_input("무슨 일을 해야 하나요?", value="dd")
+        to_do = st.text_input("무슨 일을 해야 하나요?", value="")
 
         col1, col2 = st.columns([4, 1])
         with col1:
@@ -97,7 +116,10 @@ elif st.session_state.stage == "SETTING":
             add_to_do = st.button("✚ 할 일 편집", type="primary")
         if add_to_do:
             if to_do:
-                st.write("nice")
-                st.info(to_do)
+                if save_data(to_do, "daily_tasks") == False:
+                    st.error("이미 있는 할 일입니다!")
+                else:
+                    st.session_state.show_toast = to_do
+                    st.rerun()
             else:
                 st.error("할 일을 적어주세요!")
