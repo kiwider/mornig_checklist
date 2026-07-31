@@ -63,13 +63,41 @@ if st.session_state.stage == "HOME":
 # stage SETTING
 
 elif st.session_state.stage == "SETTING":
-    st.subheader("할 일 편집")
 
-    # 돌아가기 버튼과 우측 정렬
-    col1, col2 = st.columns([4, 1])
+    col1, col2 = st.columns([5, 1])
     with col1:
-        pass
+        st.subheader("할 일 편집")
     with col2:
         if st.button("↩ 돌아가기"):
             st.session_state.stage = "HOME"
             st.rerun()
+
+    # 할 일 표시와 삭제 버튼
+    for i, task in enumerate(daily_tasks):
+        col1, col2, = st.columns([10, 1])
+        with col1:
+            st.checkbox(f'**{task}** - *매일 반복*')
+        with col2:
+            if st.button("삭제", key=f"delete_{i}", type="primary"):
+                st.write("nice")
+
+    # 할 일 추가
+    st.subheader("할 일 추가")
+    repititons = ["매일 반복", "특정 요일마다 반복", "며칠마다 반복", "반복하지 않음"]
+    repititon_type = st.selectbox("얼마나 반복할 건가요?", repititons)
+
+    if repititon_type == "매일 반복":
+
+        to_do = st.text_input("무슨 일을 해야 하나요?", value="dd")
+
+        col1, col2 = st.columns([4, 1])
+        with col1:
+            pass
+        with col2:
+            add_to_do = st.button("✚ 할 일 편집", type="primary")
+        if add_to_do:
+            if to_do:
+                st.write("nice")
+                st.info(to_do)
+            else:
+                st.error("할 일을 적어주세요!")
