@@ -13,7 +13,8 @@ def load_data():
         tasks = json.load(f)
         return tasks
 
-def save_data(data, idx):
+# 그냥 data에 있는 거 idx쪽에 추가하는 함수
+def save_task(data, idx):
     tasks = load_data()
     for i in tasks:
         if data in tasks[i]:
@@ -22,7 +23,13 @@ def save_data(data, idx):
     with open("to_do.json", "w", encoding="utf-8") as f:
         json.dump(tasks, f, ensure_ascii=False, indent=4)
     st.session_state.task_checked[data] = False
-    st.session_state.checkbox_max += 1
+
+# 그냥 idx에 있는 data 지우는 함수
+def remove_task(data, idx):
+    tasks = load_data()
+    tasks[idx].remove(data)
+    with open("to_do.json", "w", encoding="utf-8") as f:
+        json.dump(tasks, f, ensure_ascii=False, indent=4)
 
 daily_tasks = load_data()["daily_tasks"]
 all_tasks = daily_tasks
@@ -31,8 +38,6 @@ if not "task_checked" in st.session_state:
     st.session_state.task_checked = {}
     for task in all_tasks:
         st.session_state.task_checked[task] = False
-if not "checkbox_max" in st.session_state:
-    st.session_state.checkbox_max = len(all_tasks)
 if not "stage" in st.session_state:
     st.session_state.stage = "HOME"
 
@@ -79,10 +84,16 @@ if st.session_state.stage == "HOME":
 
 elif st.session_state.stage == "SETTING":
 
-    if st.session_state.get("show_toast", False):
-        st.toast(f"'{st.session_state.show_toast}' 할 일을 추가했습니다!")
-        del st.session_state.show_toast
+    # 할일 추가/삭제하면 표시되는 토스트
+    if st.session_state.get("toast_add", False):
+        st.toast(f"'{st.session_state.toast_add}' 할 일을 추가했습니다!")
+        del st.session_state.toast_add
 
+    if st.session_state.get("toast_remove", False):
+        st.toast(f"'{st.session_state.toast_remove}' 할 일을 삭제했습니다!")
+        del st.session_state.toast_remove
+
+    # 제목, 뒤로가기 버튼
     col1, col2 = st.columns([5, 1])
     with col1:
         st.subheader("할 일 편집")
@@ -93,33 +104,38 @@ elif st.session_state.stage == "SETTING":
 
     # 할 일 표시와 삭제 버튼
     for i, task in enumerate(daily_tasks):
-        col1, col2, = st.columns([10, 1])
+        col1, col2, = st.columns([10, 1], vertical_alignment="center")
         with col1:
             st.checkbox(f'**{task}** - *매일 반복*')
         with col2:
             if st.button("삭제", key=f"delete_{i}", type="primary"):
-                st.write("nice")
+                remove_task(task, "daily_tasks")
+                st.session_state.toast_remove = task
+                st.rerun()
+
+    st.subheader("")
 
     # 할 일 추가
     st.subheader("할 일 추가")
-    repititons = ["매일 반복", "특정 요일마다 반복", "며칠마다 반복", "반복하지 않음"]
-    repititon_type = st.selectbox("얼마나 반복할 건가요?", repititons)
+    repetitions = ["매일 반복", "특정 요일마다 반복", "며칠마다 반복", "반복하지 않음"]
+    repetition_type = st.selectbox("얼마나 반복할 건가요?", repetitions)
 
-    if repititon_type == "매일 반복":
+    # 매일 반복
+    if repetition_type == "매일 반복":
 
-        to_do = st.text_input("무슨 일을 해야 하나요?", value="")
+        new_task = st.text_input("무슨 일을 해야 하나요?", value="")
 
         col1, col2 = st.columns([4, 1])
         with col1:
             pass
         with col2:
-            add_to_do = st.button("✚ 할 일 편집", type="primary")
-        if add_to_do:
-            if to_do:
-                if save_data(to_do, "daily_tasks") == False:
+            add_new_task = st.button("✚ 할 일 추가", type="primary")
+        if add_new_task:
+            if new_task:
+                if save_task(new_task, "daily_tasks") == False:
                     st.error("이미 있는 할 일입니다!")
                 else:
-                    st.session_state.show_toast = to_do
+                    st.session_state.toast_add = new_task
                     st.rerun()
             else:
                 st.error("할 일을 적어주세요!")
