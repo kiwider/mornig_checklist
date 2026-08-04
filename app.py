@@ -1,5 +1,6 @@
 import streamlit as st
 import json
+from datetime import datetime, timedelta
 
 st.set_page_config(
     page_title="등교 체크리스트",
@@ -7,37 +8,47 @@ st.set_page_config(
     layout="centered"
 )
 
-# 그냥 전체 json 뱉는 함수
-def load_data():
+# 그냥 전체 json 중에서 tasks만 뱉는 함수
+def load_task():
     with open("to_do.json", "r", encoding="utf-8") as f:
         tasks = json.load(f)
         return tasks
 
-# 그냥 data에 있는 거 idx쪽에 추가하는 함수
-def save_task(data, idx):
-    tasks = load_data()
-    for i in tasks:
-        if data in tasks[i]:
-            return False
-    tasks[idx].append(data)
+# 그냥 task 추가하는 함수
+def save_task(name, repeat_unit, interval, start_date, other=None):
+    tasks = load_task()
+    names = [task["name"] for task in tasks]
+    if name in names:
+        return False
+    new_task = {"name": name, "repeat_unit": repeat_unit,
+                "interval": interval, "start_date": start_date}
+    if other != None:
+        new_task.update(other)
+    tasks.append(new_task)
     with open("to_do.json", "w", encoding="utf-8") as f:
         json.dump(tasks, f, ensure_ascii=False, indent=4)
-    st.session_state.task_checked[data] = False
+    st.session_state.task_checked[name] = False
 
-# 그냥 idx에 있는 data 지우는 함수
-def remove_task(data, idx):
-    tasks = load_data()
-    tasks[idx].remove(data)
+# 그냥 task 삭제하는 함수
+def remove_task(name):
+    tasks = load_task()
+    for idx, task in enumerate(tasks):
+        if task["name"] == name:
+            tasks.pop(idx)
+            break
     with open("to_do.json", "w", encoding="utf-8") as f:
         json.dump(tasks, f, ensure_ascii=False, indent=4)
+    del st.session_state.task_checked[name]
 
-daily_tasks = load_data()["daily_tasks"]
-all_tasks = daily_tasks
+tasks = load_task()
+task_names = [task["name"] for task in tasks]
 
 if not "task_checked" in st.session_state:
     st.session_state.task_checked = {}
-    for task in all_tasks:
-        st.session_state.task_checked[task] = False
+    for name in task_names:
+        st.session_state.task_checked[name] = False
+if "today" not in st.session_state:
+    st.session_state.today = datetime.now().date()
 if not "stage" in st.session_state:
     st.session_state.stage = "HOME"
 
@@ -54,10 +65,29 @@ def checkbox_line(label):
 # stage HOME
 
 if st.session_state.stage == "HOME":
+
     st.subheader("오늘 할 일")
 
-    for task in daily_tasks:
-        checkbox_line(task)
+    # 오늘 할 일 계산하기
+    today_tasks = []
+    today = st.session_state.today
+    for t in tasks:
+        start_date = datetime.strptime(
+            t["start_date"], "%Y-%m-%d"
+        ).date()
+        days = (today - start_date).days
+        if t["interval"] == None:
+            if days == 0:
+                today_tasks.append(t["name"])
+        else:
+            if days >= 0 and days % t["interval"] == 0:
+                today_tasks.append(t["name"])
+
+    if len(today_tasks) > 0:
+        for task in today_tasks:
+            checkbox_line(task)
+    else:
+        st.write("*오늘은 할 일이 없네요!")
 
     # 체크박스 초기화 버튼과 우측 정렬 (EM SPACE로 간격 맞춤)
     col1, col2 = st.columns([3, 1])
@@ -66,7 +96,7 @@ if st.session_state.stage == "HOME":
     with col2:
         if st.button("↺ 체크박스 초기화"):
             st.session_state.task_checked = {}
-            for task in all_tasks:
+            for task in task_names:
                 st.session_state.task_checked[task] = False
             st.rerun()
 
@@ -102,14 +132,27 @@ elif st.session_state.stage == "SETTING":
             st.session_state.stage = "HOME"
             st.rerun()
 
+    # 할 일의 반복 메시지 구하기
+    task_repeat_messages = {}
+    for task in tasks:
+        if task["repeat_unit"] == None:
+            task_repeat_messages[task["name"]] = f'{task["start_date"]}에 표시, 반복 안 함'
+        elif task["repeat_unit"] == "day":
+            if task["interval"] == 1:
+                task_repeat_messages[task["name"]] = f'{task["start_date"]}에 시작, 매일 반복'
+            else:
+                task_repeat_messages[task["name"]] = (
+                    f'{task["start_date"]}에 시작, {task["interval"]}일마다 반복'
+                )
+
     # 할 일 표시와 삭제 버튼
-    for i, task in enumerate(daily_tasks):
-        col1, col2, = st.columns([10, 1], vertical_alignment="center")
+    for task in task_names:
+        col1, col2, = st.columns([10, 1])
         with col1:
-            st.checkbox(f'**{task}** - *매일 반복*')
+            st.checkbox(f'**{task}** - *{task_repeat_messages[task]}*')
         with col2:
-            if st.button("삭제", key=f"delete_{i}", type="primary"):
-                remove_task(task, "daily_tasks")
+            if st.button("삭제", key=f'delete_{task}', type="primary"):
+                remove_task(task)
                 st.session_state.toast_remove = task
                 st.rerun()
 
@@ -123,7 +166,7 @@ elif st.session_state.stage == "SETTING":
     # 매일 반복
     if repetition_type == "매일 반복":
 
-        new_task = st.text_input("무슨 일을 해야 하나요?", value="")
+        new_task_name = st.text_input("무슨 일을 해야 하나요?")
 
         col1, col2 = st.columns([4, 1])
         with col1:
@@ -131,11 +174,11 @@ elif st.session_state.stage == "SETTING":
         with col2:
             add_new_task = st.button("✚ 할 일 추가", type="primary")
         if add_new_task:
-            if new_task:
-                if save_task(new_task, "daily_tasks") == False:
+            if new_task_name:
+                if save_task(new_task_name, "daily_tasks") == False:
                     st.error("이미 있는 할 일입니다!")
                 else:
-                    st.session_state.toast_add = new_task
+                    st.session_state.toast_add = new_task_name
                     st.rerun()
             else:
                 st.error("할 일을 적어주세요!")

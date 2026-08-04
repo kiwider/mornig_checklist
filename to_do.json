@@ -1,16 +1,20 @@
-{
-    "daily_tasks": [
-        "안녕하세요?",
-        "반가워요!"
-    ],
-    "weekly_tasks": {
-        "이건 무슨 요일마다 반복하는 겁니다": [
-            "MON",
-            "TUE"
-        ],
-        "이건 수, 목 마다고요": [
-            "WED",
-            "THU"
-        ]
+[
+    {
+        "name": "안녕하세요?",
+        "repeat_unit": "day",
+        "interval": 1,
+        "start_date": "2026-08-01"
+    },
+    {
+        "name": "반가워요!",
+        "repeat_unit": "day",
+        "interval": 1,
+        "start_date": "2026-08-01"
+    },
+    {
+        "name": "2일마다 반가워요",
+        "repeat_unit": "day",
+        "interval": 2,
+        "start_date": "2026-08-01"
     }
-}
+]
