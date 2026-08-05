@@ -1,6 +1,6 @@
 import streamlit as st
 import json
-from datetime import datetime, timedelta, date
+import datetime
 
 st.set_page_config(
     page_title="등교 체크리스트",
@@ -48,7 +48,7 @@ if not "task_checked" in st.session_state:
     for name in task_names:
         st.session_state.task_checked[name] = False
 if "today" not in st.session_state:
-    st.session_state.today = datetime.now().date()
+    st.session_state.today = datetime.datetime.now().date()
 if not "stage" in st.session_state:
     st.session_state.stage = "HOME"
 
@@ -98,12 +98,29 @@ def format_days(int, unit):
 
 if st.session_state.stage == "HOME":
 
+    @st.fragment(run_every=1)
+    def clock():
+        now = datetime.datetime.now()
+        st.markdown(
+            f"""
+            <div style="
+                text-align: center;
+                font-size: 87px;
+                font-weight: bold;
+            ">
+                {now.strftime("%H:%M:%S")}
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    clock()
+
     st.subheader("오늘 할 일")
 
     # 오늘 할 일 계산하기
     today_tasks = []
     for t in tasks:
-        start_date = datetime.strptime(
+        start_date = datetime.datetime.strptime(
             t["start_date"], "%Y-%m-%d"
         ).date()
         days = (st.session_state.today - start_date).days
@@ -131,7 +148,16 @@ if st.session_state.stage == "HOME":
                 st.session_state.task_checked[task] = False
             st.rerun()
 
-    # 할 일 추가 버튼과 우측 정렬
+    # 시계 편집 버튼과 우측 정렬
+    col1, col2 = st.columns([4, 1])
+    with col1:
+        pass
+    with col2:
+        if st.button("🕓 시계 편집"):
+            st.session_state.stage = "CLOCK"
+            st.rerun()
+
+    # 할 일 편집 버튼과 우측 정렬
     col1, col2 = st.columns([4, 1])
     with col1:
         pass
@@ -139,6 +165,38 @@ if st.session_state.stage == "HOME":
         if st.button("✎ 할 일 편집", type="primary"):
             st.session_state.stage = "SETTING"
             st.rerun()
+
+# ---------------------------------------------------------------------
+# stage CLOCK
+elif st.session_state.stage == "CLOCK":
+    col1, col2 = st.columns([5, 1])
+    with col1:
+        st.subheader("시계 편집")
+    with col2:
+        if st.button("↩ 돌아가기"):
+            st.session_state.stage = "HOME"
+            st.rerun()
+
+    outside_sec = 0
+    outside_time = st.time_input("언제 나가야 하나요?", step=300)
+    if st.checkbox("초 단위로 설정"):
+        outside_sec = st.number_input("시각을 초 단위까지 정해주세요!", min_value=0, max_value=59)
+    outside_time = outside_time.replace(second=outside_time.second + outside_sec)
+    col1, col2 = st.columns([10, 1])
+    with col1:
+        st.write(f'나가야 할 시간이 {outside_time.hour}시 {outside_time.minute}분 {outside_time.second}초로 설정됩니다')
+    with col2:
+        if st.button("저장", key="clock", type="primary"):
+            st.write("nice")
+
+    st.write("")
+    st.subheader("시계 색상 편집")
+    col1, col2 = st.columns([10, 1])
+    with col1:
+        st.color_picker("나갈 시간이 되면 바뀔 시계의 색상은 무엇인가요?")
+    with col2:
+        if st.button("저장", key="clock_color", type="primary"):
+            st.write("nice")
 
 # ---------------------------------------------------------------------
 # stage SETTING
@@ -166,7 +224,7 @@ elif st.session_state.stage == "SETTING":
     # 할 일의 반복 메시지 구하기
     task_repeat_messages = {}
     for task in tasks:
-        formated_start_date = format_date(date.fromisoformat(task["start_date"]))
+        formated_start_date = format_date(datetime.date.fromisoformat(task["start_date"]))
         if task["repeat_unit"] == None:
             if any(c.isdigit() for c in formated_start_date):
                 formated_start_date = formated_start_date + '에'
@@ -194,7 +252,8 @@ elif st.session_state.stage == "SETTING":
 
     new_name = st.text_input("무슨 일을 해야 하나요?")
     new_start_date = st.date_input(
-        "언제부터 일정을 시작하나요?", st.session_state.today + timedelta(days=1), format="YYYY.MM.DD"
+        "언제부터 일정을 시작하나요?",
+        st.session_state.today + datetime.timedelta(days=1), format="YYYY.MM.DD"
     )
 
     st.write("") # 간격 띄우기
