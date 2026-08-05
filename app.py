@@ -1,6 +1,6 @@
 import streamlit as st
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 
 st.set_page_config(
     page_title="등교 체크리스트",
@@ -17,8 +17,8 @@ def load_task():
 # 그냥 task 추가하는 함수
 def save_task(name, repeat_unit, interval, start_date, other=None):
     tasks = load_task()
-    names = [task["name"] for task in tasks]
-    if name in names:
+    task_names = [task["name"] for task in tasks]
+    if name in task_names:
         return False
     new_task = {"name": name, "repeat_unit": repeat_unit,
                 "interval": interval, "start_date": start_date}
@@ -61,6 +61,38 @@ def checkbox_line(label):
     else:
         st.checkbox(f'~~{label}~~', value=True, disabled=True)
 
+# 넣은 날짜를 현재 날짜와 비교해서 한글로 자연스럽게 바꿔주는 함수
+def format_date(dt):
+    days = (dt - st.session_state.today).days
+    if days == 0:
+        return "오늘"
+    elif days == 1:
+        return "내일"
+    elif days == 2:
+        return "모레"
+    elif days == -1:
+        return "어제"
+    elif 3 <= days <= 14:
+        return f'{days}일 후'
+    elif -2 >= days >= -14:
+        return f'{days}일 전'
+    else:
+        return f'{dt.year}년 {dt.month}월 {dt.day}일'
+
+# 얼마나 반복하는지를 자연스럽게 한글로 바꿔주는 함수
+def format_days(int, unit):
+    unit_to_ko = {"day":"일", "week":"주"}
+    if unit in unit_to_ko:
+        if int == 1:
+            return f'매{unit_to_ko[unit]}'
+        else:
+            return f'{int}{unit_to_ko[unit]}마다'
+    else:
+        if int == 1:
+            return '매월'
+        else:
+            return f'{int}개월마다'
+
 # ---------------------------------------------------------------------
 # stage HOME
 
@@ -70,12 +102,11 @@ if st.session_state.stage == "HOME":
 
     # 오늘 할 일 계산하기
     today_tasks = []
-    today = st.session_state.today
     for t in tasks:
         start_date = datetime.strptime(
             t["start_date"], "%Y-%m-%d"
         ).date()
-        days = (today - start_date).days
+        days = (st.session_state.today - start_date).days
         if t["interval"] == None:
             if days == 0:
                 today_tasks.append(t["name"])
@@ -135,21 +166,21 @@ elif st.session_state.stage == "SETTING":
     # 할 일의 반복 메시지 구하기
     task_repeat_messages = {}
     for task in tasks:
+        formated_start_date = format_date(date.fromisoformat(task["start_date"]))
         if task["repeat_unit"] == None:
-            task_repeat_messages[task["name"]] = f'{task["start_date"]}에 표시, 반복 안 함'
-        elif task["repeat_unit"] == "day":
-            if task["interval"] == 1:
-                task_repeat_messages[task["name"]] = f'{task["start_date"]}에 시작, 매일 반복'
-            else:
-                task_repeat_messages[task["name"]] = (
-                    f'{task["start_date"]}에 시작, {task["interval"]}일마다 반복'
-                )
+            if any(c.isdigit() for c in formated_start_date):
+                formated_start_date = formated_start_date + '에'
+            task_repeat_messages[task["name"]] = f'{formated_start_date} 표시, 반복되지 않음'
+        else:
+            task_repeat_messages[task["name"]] = (
+                f'{formated_start_date}부터, {format_days(task["interval"], task["repeat_unit"])} 반복'
+            )
 
     # 할 일 표시와 삭제 버튼
     for task in task_names:
         col1, col2, = st.columns([10, 1])
         with col1:
-            st.checkbox(f'**{task}** - *{task_repeat_messages[task]}*')
+            st.checkbox(f'**{task}** -- *{task_repeat_messages[task]}*')
         with col2:
             if st.button("삭제", key=f'delete_{task}', type="primary"):
                 remove_task(task)
@@ -160,25 +191,36 @@ elif st.session_state.stage == "SETTING":
 
     # 할 일 추가
     st.subheader("할 일 추가")
-    repetitions = ["매일 반복", "특정 요일마다 반복", "며칠마다 반복", "반복하지 않음"]
-    repetition_type = st.selectbox("얼마나 반복할 건가요?", repetitions)
 
-    # 매일 반복
-    if repetition_type == "매일 반복":
+    new_name = st.text_input("무슨 일을 해야 하나요?")
+    new_start_date = st.date_input(
+        "언제부터 일정을 시작하나요?", st.session_state.today + timedelta(days=1), format="YYYY.MM.DD"
+    )
 
-        new_task_name = st.text_input("무슨 일을 해야 하나요?")
+    st.write("") # 간격 띄우기
+    repetitions = ["반복 안 함", "_일마다 반복", "_주마다 반복", "_개월마다 반복"]
+    repetition_type = st.selectbox("얼마나 반복할 건가요?", repetitions, index=0)
 
-        col1, col2 = st.columns([4, 1])
-        with col1:
-            pass
-        with col2:
-            add_new_task = st.button("✚ 할 일 추가", type="primary")
-        if add_new_task:
-            if new_task_name:
-                if save_task(new_task_name, "daily_tasks") == False:
-                    st.error("이미 있는 할 일입니다!")
-                else:
-                    st.session_state.toast_add = new_task_name
-                    st.rerun()
+    if repetition_type == "반복 안 함":
+        st.write("[!] 반복이 되지 않습니다")
+        new_to_do = [new_name, None, None, new_start_date.isoformat()]
+
+    elif repetition_type == "_일마다 반복":
+        new_interval = st.number_input("며칠마다 반복하나요?", min_value=1)
+        st.write(f'[!] {format_days(new_interval, "day")} 반복됩니다')
+        new_to_do = [new_name, "day", new_interval, new_start_date.isoformat()]
+
+    col1, col2 = st.columns([4, 1])
+    with col1:
+        pass
+    with col2:
+        add_new_task = st.button("✚ 할 일 추가", type="primary")
+    if add_new_task:
+        if new_name:
+            if save_task(*new_to_do) == False:
+                st.error("이미 있는 할 일입니다!")
             else:
-                st.error("할 일을 적어주세요!")
+                st.session_state.toast_add = new_name
+                st.rerun()
+        else:
+            st.error("할 일을 적어주세요!")
